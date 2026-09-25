@@ -1,0 +1,15 @@
+# Rust / Tauri build output
+src-tauri/target/
+src-tauri/.build-tmp/
+
+# Node
+node_modules/
+
+# Logs
+*.log
+
+# Local secrets (template .env.example stays committed)
+.env
+
+# Scratch verification screenshots (docs/ holds the curated one)
+design-shots/
