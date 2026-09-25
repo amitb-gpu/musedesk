@@ -8,6 +8,17 @@ Built with [Tauri v2](https://tauri.app/) (Rust backend, plain HTML/JS frontend)
 
 > **Status:** working demo. The Meta API backend is implemented and ready, but Meta had not yet enabled pay-as-you-go API key creation at the time of writing — so the app currently runs on a **local-CLI backend** that uses your own `muse` CLI subscription as the reasoning engine. Flip one env var to switch backends (see below).
 
+## Examples
+
+MuseDesk shines when the chat crosses the Windows/Linux boundary. A few things to try:
+
+- **WSL project setup** — "In my WSL Ubuntu, create a conda env called `musedesk` and scaffold `~/projects/musedesk` with `src/`, `tests/`, and `docs/`." Watch every sensitive step arrive as an Approve/Deny card first.
+- **Read-only recon** — "List the biggest files in my Documents folder." Reads never ask for approval.
+- **Summarize a project** — "Read the README in my current project and tell me what it does."
+- **The full approval loop** — "Create a test file on my Desktop with today's date in it, then read it back." One line, one approval, one result.
+
+Deny anything and the run stops cold — `denied by user`, no retries, nothing written.
+
 ---
 
 ## Features

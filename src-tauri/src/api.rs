@@ -425,6 +425,25 @@ mod tests {
         })]
     }
 
+    // Boot contract (ship-blocker guard): bad or missing config must come back
+    // as a plain Err the app boots past — never a panic. Release builds have
+    // no console, so a startup panic would fail completely silently.
+    // Note: MUSED_BACKEND is process-global; this test saves and restores it.
+    #[test]
+    fn bad_config_is_a_plain_error_never_a_panic() {
+        let prior = std::env::var("MUSED_BACKEND").ok();
+        std::env::set_var("MUSED_BACKEND", "bogus-backend-for-test");
+        let result = ModelBackend::from_env();
+        match prior {
+            Some(v) => std::env::set_var("MUSED_BACKEND", v),
+            None => std::env::remove_var("MUSED_BACKEND"),
+        }
+        assert!(
+            result.is_err(),
+            "bad backend config must be an Err the app can boot past"
+        );
+    }
+
     // One test (not two) so the process-global env var can't race.
     #[test]
     fn backend_selection_from_env() {

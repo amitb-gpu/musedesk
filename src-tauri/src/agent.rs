@@ -36,6 +36,25 @@ pub async fn run_loop(
     state: &Arc<AppState>,
     user_text: String,
 ) -> Result<(), String> {
+    // Deferred backend check: the app boots without a usable backend, so the
+    // first send degrades to friendly in-chat guidance instead of failing.
+    let api = match &state.api {
+        Some(api) => api.clone(),
+        None => {
+            let detail = state
+                .api_error
+                .clone()
+                .unwrap_or_else(|| "unknown configuration error".to_string());
+            let _ = app.emit(
+                "agent-error",
+                format!(
+                    "Chat backend isn't configured ({detail}). Set META_API_KEY, or set MUSED_BACKEND=local-cli to use the local CLI, then send your message again."
+                ),
+            );
+            return Ok(());
+        }
+    };
+
     let mut messages: Vec<Value> = vec![
         json!({"role": "system", "content": SYSTEM_PROMPT}),
         json!({"role": "user", "content": user_text}),
@@ -51,42 +70,40 @@ pub async fn run_loop(
         let app_ref = &app;
         let content_ref = &mut content;
         let tcalls_ref = &mut tcalls;
-        state
-            .api
-            .chat_stream(&messages, &tools_schema, |delta| {
-                let choice = delta
-                    .get("choices")
-                    .and_then(|c| c.get(0))
-                    .and_then(|c| c.get("delta"));
-                let Some(choice) = choice else { return };
-                if let Some(t) = choice.get("content").and_then(|c| c.as_str()) {
-                    content_ref.push_str(t);
-                    let _ = app_ref.emit("token", t.to_string());
-                }
-                if let Some(arr) = choice.get("tool_calls").and_then(|a| a.as_array()) {
-                    for tc in arr {
-                        let idx = tc.get("index").and_then(|i| i.as_u64()).unwrap_or(0) as usize;
-                        while tcalls_ref.len() <= idx {
-                            tcalls_ref.push((None, String::new(), String::new()));
-                        }
-                        let entry = &mut tcalls_ref[idx];
-                        if let Some(id) = tc.get("id").and_then(|v| v.as_str()) {
-                            entry.0 = Some(id.to_string());
-                        }
-                        if let Some(f) = tc.get("function") {
-                            if let Some(name) = f.get("name").and_then(|v| v.as_str()) {
-                                if !name.is_empty() {
-                                    entry.1 = name.to_string();
-                                }
+        api.chat_stream(&messages, &tools_schema, |delta| {
+            let choice = delta
+                .get("choices")
+                .and_then(|c| c.get(0))
+                .and_then(|c| c.get("delta"));
+            let Some(choice) = choice else { return };
+            if let Some(t) = choice.get("content").and_then(|c| c.as_str()) {
+                content_ref.push_str(t);
+                let _ = app_ref.emit("token", t.to_string());
+            }
+            if let Some(arr) = choice.get("tool_calls").and_then(|a| a.as_array()) {
+                for tc in arr {
+                    let idx = tc.get("index").and_then(|i| i.as_u64()).unwrap_or(0) as usize;
+                    while tcalls_ref.len() <= idx {
+                        tcalls_ref.push((None, String::new(), String::new()));
+                    }
+                    let entry = &mut tcalls_ref[idx];
+                    if let Some(id) = tc.get("id").and_then(|v| v.as_str()) {
+                        entry.0 = Some(id.to_string());
+                    }
+                    if let Some(f) = tc.get("function") {
+                        if let Some(name) = f.get("name").and_then(|v| v.as_str()) {
+                            if !name.is_empty() {
+                                entry.1 = name.to_string();
                             }
-                            if let Some(args) = f.get("arguments").and_then(|v| v.as_str()) {
-                                entry.2.push_str(args);
-                            }
+                        }
+                        if let Some(args) = f.get("arguments").and_then(|v| v.as_str()) {
+                            entry.2.push_str(args);
                         }
                     }
                 }
-            })
-            .await?;
+            }
+        })
+        .await?;
 
         // Finalize tool calls (drop empties from sparse indexes).
         let calls: Vec<(String, String, Value)> = tcalls

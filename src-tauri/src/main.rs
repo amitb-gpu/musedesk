@@ -10,7 +10,11 @@ use tauri::{Emitter, State};
 use tokio::sync::oneshot;
 
 pub struct AppState {
-    pub api: api::ModelBackend,
+    /// None when backend config is missing or invalid. The app still boots
+    /// (a startup panic would be silent in release builds, which have no
+    /// console); the first send shows in-chat setup guidance instead.
+    pub api: Option<api::ModelBackend>,
+    pub api_error: Option<String>,
     pub approvals: Mutex<HashMap<String, oneshot::Sender<bool>>>,
 }
 
@@ -136,13 +140,18 @@ mod capability_tests {
 }
 
 fn main() {
-    let api = api::ModelBackend::from_env().expect(
-        "MUSED_BACKEND=local-cli needs no key; otherwise set META_API_KEY / META_BASE_URL (see .env.example)",
-    );
+    // Boot unconditionally: missing keys or a bad backend selection must
+    // never prevent the window from opening. Usability is checked on first
+    // send instead — see run_loop.
+    let (api, api_error) = match api::ModelBackend::from_env() {
+        Ok(backend) => (Some(backend), None),
+        Err(err) => (None, Some(err)),
+    };
 
     tauri::Builder::default()
         .manage(Arc::new(AppState {
             api,
+            api_error,
             approvals: Mutex::new(HashMap::new()),
         }))
         .invoke_handler(tauri::generate_handler![send_message, resolve_approval])
