@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod agent;
 mod api;
 mod tools;
@@ -100,7 +102,11 @@ mod capability_tests {
                         .collect()
                 })
                 .unwrap_or_else(|| panic!("{}: main-window capability needs /permissions", path.display()));
-            if perms.iter().any(|p| p == "core:event:allow-listen" || p == "core:event:default") {
+            if perms.iter().any(|p| p == "core:event:allow-listen")
+                && perms.iter().any(|p| {
+                    p == "core:event:allow-unlisten" || p == "core:event:default"
+                })
+            {
                 listen_allowed = true;
             }
             // Scope stays tight: this window gets event permissions only. All
@@ -122,8 +128,9 @@ mod capability_tests {
         assert!(main_caps > 0, "no capability targets the main window");
         assert!(
             listen_allowed,
-            "main window capability must include core:event:allow-listen \
-             (or core:event:default) or the UI cannot receive agent events"
+            "main window capability must include core:event:allow-listen plus \
+             core:event:allow-unlisten (or core:event:default) or the UI \
+             cannot receive agent events"
         );
     }
 }

@@ -141,6 +141,8 @@ impl LocalCliClient {
         // argv risks quoting/length bugs). Its own action tools are disabled:
         // it must only reason and return the structured answer.
         let mut child = tokio::process::Command::new("cmd")
+            // CREATE_NO_WINDOW: never flash a console when reasoning.
+            .creation_flags(0x08000000)
             .args(["/C", "muse", "exec", "--json", "--prompt-file"])
             .arg(&prompt_path)
             .args(["--output-schema"])
