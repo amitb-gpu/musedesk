@@ -29,6 +29,25 @@ Deny anything and the run stops cold — `denied by user`, no retries, nothing w
 - **Two model backends** — direct Meta Model API (default), or local CLI for demos before your API key arrives.
 - **Native Windows UI** — Copilot-style centered chat, Fluent design, light theme.
 
+## Install from a release
+
+Download the latest `.exe` (or `.msi`) from the [Releases page](https://github.com/amitb-gpu/musedesk/releases) and run it — no build tools needed.
+
+**Backend requirements** — pick one:
+
+| Backend | What you need |
+|---|---|
+| `local-cli` (works today) | The Muse Code CLI installed and on `PATH`, authenticated with a Muse subscription ($5/month plan). The app shells out to `muse` as its reasoning engine — no API key needed. |
+| `meta-api` (production path) | A pay-as-you-go `META_API_KEY` (see Configuration). Key creation was still rolling out at the time of writing. |
+
+**Optional:** WSL2 with Ubuntu (`wsl --install -d Ubuntu`) if you want the `wsl` tool — everything else works without it.
+
+Set the backend once before first launch (user-level env var):
+
+```powershell
+setx MUSED_BACKEND local-cli
+```
+
 ## Quick start (Windows)
 
 **Prerequisites**
