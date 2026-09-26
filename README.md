@@ -117,6 +117,7 @@ src-tauri/
 3. **Bundler: "Couldn't find a .ico icon"** — `tauri.conf.json` must point `bundle.icon` at a real `.ico`, not an empty array.
 4. **Blank UI after frontend changes** — WebView2 aggressively caches the dev frontend; the dev HTML uses `?v=` cache-busters on stylesheet/script links. If in doubt, clear the WebView2 dev-profile cache.
 5. **`event.listen not allowed` in the console** — the capability file in `src-tauri/capabilities/` must grant `core:event:allow-listen`; without it the UI renders nothing even though the backend runs.
+6. **User-level env vars invisible to the app** — Windows only picks up user `setx` variables in Explorer (and apps it launches) after a fresh logon or Explorer restart. If the app claims a backend/key you already set, open a *new* `cmd` and run `echo %MUSED_BACKEND%` — if it's empty there too, log off and back on (or restart Explorer) and try again.
 
 ## Roadmap
 

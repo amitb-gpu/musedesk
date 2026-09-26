@@ -45,11 +45,11 @@ pub async fn run_loop(
                 .api_error
                 .clone()
                 .unwrap_or_else(|| "unknown configuration error".to_string());
+            // from_env's error is already actionable (names the missing keys
+            // plus the local-cli alternative), so just frame it.
             let _ = app.emit(
                 "agent-error",
-                format!(
-                    "Chat backend isn't configured ({detail}). Set META_API_KEY, or set MUSED_BACKEND=local-cli to use the local CLI, then send your message again."
-                ),
+                format!("Chat backend isn't configured ({detail})."),
             );
             return Ok(());
         }

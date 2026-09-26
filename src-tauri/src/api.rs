@@ -15,6 +15,24 @@ pub struct MetaApiClient {
 
 impl MetaApiClient {
     pub fn from_env() -> Result<Self, String> {
+        // Name every missing setting up front (and treat blank as missing),
+        // so the guidance points at what's actually wrong. local-cli needs
+        // none of these — see ModelBackend::from_env.
+        let missing: Vec<&str> = ["META_BASE_URL", "META_API_KEY"]
+            .into_iter()
+            .filter(|k| {
+                std::env::var(k)
+                    .map(|v| v.trim().is_empty())
+                    .unwrap_or(true)
+            })
+            .collect();
+        if !missing.is_empty() {
+            return Err(format!(
+                "missing {} — set {} (see .env.example), or set MUSED_BACKEND=local-cli to use the local CLI with no key",
+                missing.join(" and "),
+                if missing.len() == 1 { "it" } else { "them" },
+            ));
+        }
         let get = |k: &str| {
             std::env::var(k).map_err(|_| format!("missing env var {k} — see .env.example"))
         };
@@ -300,11 +318,15 @@ pub enum ModelBackend {
 
 impl ModelBackend {
     pub fn from_env() -> Result<Self, String> {
-        match std::env::var("MUSED_BACKEND").unwrap_or_default().as_str() {
+        // Trimmed and case-insensitive: a stray space or capital letter must
+        // never silently reroute local-cli users into the key-requiring path.
+        // local-cli needs no META_* vars at all.
+        let raw = std::env::var("MUSED_BACKEND").unwrap_or_default();
+        match raw.trim().to_lowercase().as_str() {
             "local-cli" => Ok(ModelBackend::LocalCli(LocalCliClient::default())),
             "" | "meta-api" => Ok(ModelBackend::MetaApi(MetaApiClient::from_env()?)),
-            other => Err(format!(
-                "unknown MUSED_BACKEND={other} (expected meta-api or local-cli)"
+            _ => Err(format!(
+                "unknown MUSED_BACKEND={raw:?} (expected meta-api or local-cli)"
             )),
         }
     }
@@ -444,12 +466,28 @@ mod tests {
         );
     }
 
-    // One test (not two) so the process-global env var can't race.
+    // One test (not two) so the process-global env var can't race: every
+    // assertion that touches MUSED_BACKEND lives here.
     #[test]
     fn backend_selection_from_env() {
-        std::env::set_var("MUSED_BACKEND", "local-cli");
-        let backend = ModelBackend::from_env().expect("local-cli must not require META_API_KEY");
-        assert!(matches!(backend, ModelBackend::LocalCli(_)));
+        // local-cli resolves with no META keys at all (fresh-install path),
+        // and tolerates stray whitespace/case in the value.
+        std::env::remove_var("META_BASE_URL");
+        std::env::remove_var("META_API_KEY");
+        for value in ["local-cli", "  Local-CLI  "] {
+            std::env::set_var("MUSED_BACKEND", value);
+            let backend =
+                ModelBackend::from_env().expect("local-cli must not require META keys");
+            assert!(matches!(backend, ModelBackend::LocalCli(_)));
+        }
+        // Unset backend + no keys: the error must name what's actually
+        // missing (both keys), not just the first one checked.
+        std::env::remove_var("MUSED_BACKEND");
+        let err = ModelBackend::from_env().expect_err("keyless meta-api must fail");
+        assert!(
+            err.contains("META_BASE_URL") && err.contains("META_API_KEY"),
+            "unhelpful missing-key error: {err}"
+        );
         std::env::set_var("MUSED_BACKEND", "bogus");
         assert!(ModelBackend::from_env().is_err());
         std::env::remove_var("MUSED_BACKEND");
