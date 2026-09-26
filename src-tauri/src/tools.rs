@@ -110,6 +110,8 @@ fn truncate(s: &str, max: usize) -> String {
 
 async fn run_powershell(command: &str) -> Result<String, String> {
     let out = tokio::process::Command::new("powershell")
+        // CREATE_NO_WINDOW: tool runs must never flash a console.
+        .creation_flags(0x08000000)
         .args(["-NoProfile", "-NonInteractive", "-Command", command])
         .output()
         .await
@@ -133,6 +135,8 @@ async fn run_powershell(command: &str) -> Result<String, String> {
 /// Still one-shot `bash -lc` per call: a fresh login shell every time.
 async fn run_wsl(inner: &str) -> Result<String, String> {
     let out = tokio::process::Command::new("wsl.exe")
+        // CREATE_NO_WINDOW: tool runs must never flash a console.
+        .creation_flags(0x08000000)
         .args(["-d", "Ubuntu", "-e", "bash", "-lc", inner])
         .output()
         .await
