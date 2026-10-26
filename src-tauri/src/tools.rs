@@ -55,7 +55,7 @@ pub fn all() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "wsl",
-            description: "Run a command inside WSL2 Ubuntu via wsl.exe interop. \
+            description: "Run a command inside WSL2 via wsl.exe interop. \
                 Every call is a FRESH login shell: re-cd to the working directory \
                 and re-establish all context in every call. Prefer `conda run -n <env>` \
                 over activation. Do not use `bash -ic`.",
@@ -128,16 +128,25 @@ async fn run_powershell(command: &str) -> Result<String, String> {
     Ok(truncate(&combined, 12000))
 }
 
-/// Runs `inner` inside WSL2 Ubuntu by spawning wsl.exe directly — argv goes
+/// Runs `inner` inside WSL2 by spawning wsl.exe directly — argv goes
 /// straight through CreateProcess, so no PowerShell or shell quoting layer
 /// can mangle payloads (a POSIX single-quote wrap does NOT survive
 /// `powershell -Command`, verified live: it arrives split and prints blank).
 /// Still one-shot `bash -lc` per call: a fresh login shell every time.
 async fn run_wsl(inner: &str) -> Result<String, String> {
-    let out = tokio::process::Command::new("wsl.exe")
-        // CREATE_NO_WINDOW: tool runs must never flash a console.
-        .creation_flags(0x08000000)
-        .args(["-d", "Ubuntu", "-e", "bash", "-lc", inner])
+    let mut cmd = tokio::process::Command::new("wsl.exe");
+    // CREATE_NO_WINDOW: tool runs must never flash a console.
+    cmd.creation_flags(0x08000000);
+    if let Ok(distro) = std::env::var("MUSED_WSL_DISTRO") {
+        let distro = distro.trim().to_string();
+        if !distro.is_empty() {
+            cmd.arg("-d").arg(distro);
+        }
+    }
+    // No MUSED_WSL_DISTRO set: omit -d, wsl.exe uses the Windows default distro.
+    // Dell6 default = Ubuntu, Vermithor default = Ubuntu-26.04.
+    let out = cmd
+        .args(["-e", "bash", "-lc", inner])
         .output()
         .await
         .map_err(|e| format!("failed to spawn wsl.exe: {e}"))?;
